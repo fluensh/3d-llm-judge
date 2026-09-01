@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.local
+
+# Environment - never commit API keys
+.env
+.env.local
+backend/.env
+frontend/.env
+
+.DS_Store
+*.log
