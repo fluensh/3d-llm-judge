@@ -6,6 +6,7 @@ import { geminiProvider } from "./gemini.js";
 // DashScope OpenAI-compatible endpoint (China region)
 const DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
 export const qwenProvider: LlmProvider = createOpenAiCompatibleProvider({
   id: "qwen",
@@ -23,7 +24,29 @@ export const deepseekProvider: LlmProvider = createOpenAiCompatibleProvider({
   apiKey: () => config.deepseekApiKey,
 });
 
-export const providers: LlmProvider[] = [geminiProvider, qwenProvider, deepseekProvider];
+export const openrouterGeminiProvider: LlmProvider = createOpenAiCompatibleProvider({
+  id: "openrouter-gemini",
+  label: "OpenRouter Gemini 3.7 Flash",
+  model: config.openrouterModel,
+  baseUrl: OPENROUTER_BASE_URL,
+  apiKey: () => config.openrouterApiKey,
+});
+
+export const openrouterGptProvider: LlmProvider = createOpenAiCompatibleProvider({
+  id: "openrouter-gpt",
+  label: "OpenRouter ChatGPT 5.6 Sol",
+  model: config.openrouterGptModel,
+  baseUrl: OPENROUTER_BASE_URL,
+  apiKey: () => config.openrouterApiKey,
+});
+
+export const providers: LlmProvider[] = [
+  geminiProvider,
+  qwenProvider,
+  deepseekProvider,
+  openrouterGeminiProvider,
+  openrouterGptProvider,
+];
 
 export function getProvider(id: string): LlmProvider | undefined {
   return providers.find((p) => p.id === id);

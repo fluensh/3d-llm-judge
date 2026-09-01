@@ -132,8 +132,19 @@ export default function App() {
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-medium text-gray-700">评估大模型</span>
+              {selectedInfo && (
+                <span className="text-xs text-gray-500">
+                  当前：
+                  <span className="font-mono text-gray-700">{selectedInfo.model}</span>
+                  <span className={`ml-2 ${selectedInfo.configured ? "text-emerald-600" : "text-amber-600"}`}>
+                    {selectedInfo.configured ? "● 可用" : "● 未配置 Key"}
+                  </span>
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {(providerList.length > 0
                 ? providerList
                 : [{ id: "gemini", label: "Google Gemini", model: "gemini-3.7-flash", configured: true }]
@@ -145,17 +156,32 @@ export default function App() {
                     type="button"
                     onClick={() => setSelectedProvider(p.id)}
                     disabled={phase === "loading"}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                    aria-pressed={selected}
+                    className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
                       selected
-                        ? "border-blue-600 bg-blue-50 text-blue-700"
-                        : "border-gray-300 bg-white text-gray-600 hover:border-gray-400"
+                        ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600"
+                        : "border-gray-200 bg-white hover:border-gray-400"
                     } ${phase === "loading" ? "cursor-not-allowed opacity-60" : ""}`}
                     title={p.configured ? p.model : `${p.model}（API Key 未配置）`}
                   >
-                    <span className="font-medium">{p.label}</span>
-                    <span className="text-xs text-gray-400">{p.model}</span>
+                    <span
+                      aria-hidden
+                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                        p.configured
+                          ? selected
+                            ? "bg-blue-600"
+                            : "bg-emerald-400"
+                          : "bg-amber-400"
+                      }`}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className={`block truncate text-sm font-medium ${selected ? "text-blue-700" : "text-gray-700"}`}>
+                        {p.label}
+                      </span>
+                      <span className="block truncate font-mono text-xs text-gray-400">{p.model}</span>
+                    </span>
                     {!p.configured && (
-                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">
+                      <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">
                         未配置 Key
                       </span>
                     )}
