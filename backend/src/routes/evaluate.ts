@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import multer from "multer";
-import { config, isGeminiConfigured } from "../config.js";
-import { evaluateWithGemini } from "../services/geminiService.js";
+import { getProvider, providers } from "../services/providers/index.js";
+import type { LlmProvider } from "../services/providers/types.js";
 import { parseGeminiEvaluation } from "../schemas/evaluationSchema.js";
 import { computeOverallScore, DIMENSION_META } from "../utils/scoreCalculator.js";
 import {
@@ -36,8 +36,8 @@ interface ApiFile {
 export type StageId =
   | "received"
   | "validated"
-  | "gemini_started"
-  | "gemini_completed"
+  | "llm_started"
+  | "llm_completed"
   | "schema_validated"
   | "scoring";
 
@@ -168,8 +168,24 @@ evaluateRouter.post(
       }
     }
 
-    if (!isGeminiConfigured()) {
-      apiError(res, 500, "GEMINI_KEY_MISSING", "Gemini API Key 未配置，请检查 backend/.env。");
+    const providerId = String(req.body?.provider ?? "gemini");
+    const provider: LlmProvider | undefined = getProvider(providerId);
+    if (!provider) {
+      apiError(
+        res,
+        400,
+        "UNKNOWN_PROVIDER",
+        `不支持的大模型：${providerId}。可选：${providers.map((p) => p.id).join(" / ")}。`,
+      );
+      return;
+    }
+    if (!provider.isConfigured()) {
+      apiError(
+        res,
+        500,
+        "PROVIDER_KEY_MISSING",
+        `${provider.label}（${provider.model}）的 API Key 未配置，请检查 backend/.env。`,
+      );
       return;
     }
 
@@ -203,20 +219,20 @@ evaluateRouter.post(
     try {
       sendStage(
         "received",
-        `已收到 ${referenceFiles.length} 张参考图片、${candidateFiles.length} 张候选渲染图。`,
+        `已收到 ${referenceFiles.length} 张参考图片、${candidateFiles.length} 张候选渲染图（评估模型：${provider.label} / ${provider.model}）。`,
       );
       sendStage("validated", "图片校验通过（格式 / 大小 / 数量）。");
 
       sendStage(
-        "gemini_started",
-        `正在调用 Gemini（${config.geminiModel}）进行多模态分析：人物身份、面部几何、身体比例、姿态与局部结构……`,
+        "llm_started",
+        `正在调用 ${provider.label}（${provider.model}）进行多模态分析：人物身份、面部几何、身体比例、姿态与局部结构……`,
       );
-      const raw = await evaluateWithGemini(
+      const raw = await provider.evaluate(
         toInputImages(referenceFiles),
         toInputImages(candidateFiles),
         { signal: controller.signal },
       );
-      sendStage("gemini_completed", "Gemini 分析完成，已收到结构化返回。");
+      sendStage("llm_completed", `${provider.label} 分析完成，已收到结构化返回。`);
 
       sendStage("schema_validated", "返回数据已通过 Zod Schema 校验。");
       const parsed = parseGeminiEvaluation(raw);

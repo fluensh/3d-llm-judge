@@ -1,9 +1,13 @@
 import "dotenv/config";
 
 export const config = {
+  port: Number(process.env.PORT ?? 3001),
   geminiApiKey: process.env.GEMINI_API_KEY ?? "",
   geminiModel: process.env.GEMINI_MODEL ?? "gemini-3.7-flash",
-  port: Number(process.env.PORT ?? 3001),
+  dashscopeApiKey: process.env.DASHSCOPE_API_KEY ?? "",
+  qwenModel: process.env.QWEN_MODEL ?? "qwen3.8-max",
+  deepseekApiKey: process.env.DEEPSEEK_API_KEY ?? "",
+  deepseekModel: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash-vision-exp",
 } as const;
 
 export const isGeminiConfigured = (): boolean => config.geminiApiKey.length > 0;

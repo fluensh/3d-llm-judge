@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ImageUploadSection from "./components/ImageUploadSection";
 import ImageCompareGallery from "./components/ImageCompareGallery";
 import OverallScoreCard from "./components/OverallScoreCard";
@@ -11,12 +11,19 @@ import type { EvaluationResult } from "./types/evaluation";
 
 type Phase = "idle" | "loading" | "done";
 
+export interface ProviderInfo {
+  id: string;
+  label: string;
+  model: string;
+  configured: boolean;
+}
+
 const stageLabel: Record<string, string> = {
   request: "请求阶段",
   received: "接收图片",
   validated: "图片校验",
-  gemini_started: "Gemini 调用",
-  gemini_completed: "Gemini 返回",
+  llm_started: "模型调用",
+  llm_completed: "模型返回",
   schema_validated: "数据校验",
   scoring: "分数计算",
   stream: "连接",
@@ -26,6 +33,28 @@ export default function App() {
   const reference = useImageList();
   const candidate = useImageList();
 
+  const [providerList, setProviderList] = useState<ProviderInfo[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState("gemini");
+
+  useEffect(() => {
+    fetch("/api/health")
+      .then((res) => res.json())
+      .then((data: { providers?: ProviderInfo[] }) => {
+        if (Array.isArray(data.providers) && data.providers.length > 0) {
+          setProviderList(data.providers);
+          const firstConfigured =
+            data.providers.find((p) => p.configured)?.id ?? data.providers[0].id;
+          setSelectedProvider(firstConfigured);
+        }
+      })
+      .catch(() => {
+        // backend unreachable - selector falls back to a static Gemini entry
+      });
+  }, []);
+
+  const selectedInfo = providerList.find((p) => p.id === selectedProvider);
+  const providerReady = !selectedInfo || selectedInfo.configured;
+
   const [phase, setPhase] = useState<Phase>("idle");
   const [stages, setStages] = useState<StageInfo[]>([]);
   const [error, setError] = useState<ApiError | null>(null);
@@ -33,7 +62,10 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<{ reference: File[]; candidate: File[] } | null>(null);
 
   const canEvaluate =
-    reference.files.length > 0 && candidate.files.length > 0 && phase !== "loading";
+    reference.files.length > 0 &&
+    candidate.files.length > 0 &&
+    phase !== "loading" &&
+    providerReady;
 
   async function handleEvaluate() {
     setPhase("loading");
@@ -42,17 +74,22 @@ export default function App() {
     setResult(null);
     setSnapshot({ reference: [...reference.files], candidate: [...candidate.files] });
 
-    await evaluate(reference.files, candidate.files, {
-      onStage: (stage) => setStages((prev) => [...prev, stage]),
-      onResult: (evaluationResult) => {
-        setResult(evaluationResult);
-        setPhase("done");
+    await evaluate(
+      reference.files,
+      candidate.files,
+      {
+        onStage: (stage) => setStages((prev) => [...prev, stage]),
+        onResult: (evaluationResult) => {
+          setResult(evaluationResult);
+          setPhase("done");
+        },
+        onError: (apiError) => {
+          setError(apiError);
+          setPhase("idle");
+        },
       },
-      onError: (apiError) => {
-        setError(apiError);
-        setPhase("idle");
-      },
-    });
+      selectedProvider,
+    );
   }
 
   return (
@@ -94,6 +131,40 @@ export default function App() {
             />
           </div>
 
+          <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">评估大模型</span>
+              {(providerList.length > 0
+                ? providerList
+                : [{ id: "gemini", label: "Google Gemini", model: "gemini-3.7-flash", configured: true }]
+              ).map((p) => {
+                const selected = selectedProvider === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setSelectedProvider(p.id)}
+                    disabled={phase === "loading"}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                      selected
+                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        : "border-gray-300 bg-white text-gray-600 hover:border-gray-400"
+                    } ${phase === "loading" ? "cursor-not-allowed opacity-60" : ""}`}
+                    title={p.configured ? p.model : `${p.model}（API Key 未配置）`}
+                  >
+                    <span className="font-medium">{p.label}</span>
+                    <span className="text-xs text-gray-400">{p.model}</span>
+                    {!p.configured && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">
+                        未配置 Key
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="flex flex-col items-center gap-3">
             <button
               type="button"
@@ -111,6 +182,12 @@ export default function App() {
             {(reference.files.length === 0 || candidate.files.length === 0) && phase === "idle" && (
               <p className="text-xs text-gray-400">
                 请至少上传一张原始参考图片和一张候选模型渲染图。
+              </p>
+            )}
+            {!providerReady && phase === "idle" && (
+              <p className="text-xs text-amber-600">
+                {selectedInfo?.label}（{selectedInfo?.model}）的 API Key 未配置，请在
+                backend/.env 中填写对应的 Key 后重启后端。
               </p>
             )}
           </div>

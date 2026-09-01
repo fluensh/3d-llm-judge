@@ -34,10 +34,12 @@ export async function evaluate(
   referenceImages: File[],
   candidateImages: File[],
   callbacks: EvaluateCallbacks,
+  provider: string = "gemini",
 ): Promise<void> {
   const formData = new FormData();
   referenceImages.forEach((file) => formData.append("referenceImages", file));
   candidateImages.forEach((file) => formData.append("candidateImages", file));
+  formData.append("provider", provider);
 
   let response: Response;
   try {
